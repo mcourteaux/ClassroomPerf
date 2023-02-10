@@ -1,0 +1,22 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html encoding="utf-8">
+
+  <body>
+    <h1>Submit</h1>
+    <b>Rules:</b>
+    <ul>
+      <li>No memory allocations.</li>
+      <li>No multi-threading.</li>
+      <li>No stdin stdout stderr.</li>
+      <li>No file IO.</li>
+      <li>No cmath/math.h for atan/atanf.</li>
+    </ul>
+    <form action="/submit" id="submit_form" method="post">
+      <textarea name="code" form="submit_form" cols="100" rows="35">// Paste your code here.</textarea>
+      <br>
+      Compiler flags: <input type="text" name="flags" value="-O3"></input>
+      <button type="submit">Submit Code</input>
+    </form>
+  </body>
+
+</html>
