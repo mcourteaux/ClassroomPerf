@@ -26,6 +26,10 @@ fi
 
 # Get disassembly from function
 OBJDUMP=$HOME/w/3rd/binutils/binutils/objdump
+if [ ! -e $OBJDUMP ]; then
+  OBJDUMP=objdump
+fi
+
 SYMBOL_NAME="student_atan"
 SYMBOL=$($OBJDUMP -t $BINARY | grep ' g  ' | grep $SYMBOL_NAME | cut -d\  -f 6)
 echo "Found symbol: $SYMBOL"
