@@ -1,0 +1,28 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Leaderboard: ${TASK}</title>
+<style>
+  td {
+    border: 1px solid;
+  }
+</style>
+  </head>
+  <body>
+    <h1>Leaderboard: ${TASK}</h1>
+    <p>
+    <a href="make_submission.html">Make a submission</a>
+    </p>
+    <table style="width: 90%; border-collapse: collapse;">
+      <tr>
+        <th>Rank</th>
+        <th>Submission ID</th>
+        <th>User ID</th>
+        <th>Time</th>
+      </tr>
+      ${LEADERBOARD_ROWS}
+    </table>
+  </body>
+</html>

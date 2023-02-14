@@ -40,7 +40,8 @@ int main(int argc, char **argv) {
 
   // Benchmark
   double best_time = std::numeric_limits<double>::max();
-  for (int run = 0; run < 20; ++run) {
+  int best_run = -1;
+  for (int run = 0; run < 30 || best_run > run - 5; ++run) {
     high_resolution_clock::time_point start = high_resolution_clock::now();
     for (int i = 0; i < 200'0000; ++i) {
       r += student_atan(values[i % num_inputs], max_error);
@@ -49,8 +50,13 @@ int main(int argc, char **argv) {
     double elapsed_seconds =
         std::chrono::duration_cast<std::chrono::duration<double> >(stop - start)
             .count();
-    std::cerr << "Time: " << elapsed_seconds << std::endl;
-    best_time = std::min(best_time, elapsed_seconds);
+    if (elapsed_seconds < best_time) {
+      best_time = elapsed_seconds;
+      best_run = run;
+      std::cerr << "Time: " << elapsed_seconds << "  (new best!)" << std::endl;
+    } else {
+      std::cerr << "Time: " << elapsed_seconds << std::endl;
+    }
   }
   std::cerr << "Best time: " << best_time << std::endl;
   std::cerr << r << std::endl;

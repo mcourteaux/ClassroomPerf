@@ -1,8 +1,11 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
-<html encoding="utf-8">
-
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Make a new submission</title>
+  </head>
   <body>
-    <h1>Submit</h1>
+    <h1>Make a new submittion</h1>
     <b>Rules:</b>
     <ul>
       <li>No memory allocations.</li>
@@ -12,6 +15,9 @@
       <li>No cmath/math.h for atan/atanf.</li>
       <li>No digraphs or preprocessor symbols.</li>
     </ul>
+    <p>
+    If you do not <code>inline</code> your function, you'll get to see the dissassmbly of it after submitting.
+    </p>
     <form action="/submit" id="submit_form" method="post">
       <textarea name="code" form="submit_form" cols="100" rows="35">// Paste your code here.</textarea>
       <br>

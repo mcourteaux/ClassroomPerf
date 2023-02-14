@@ -6,8 +6,17 @@
     <title>Submission ${SUBMISSION_ID}</title>
   </head>
   <body>
-    <h1>Submission ${SUBMISSION_ID}</h1>
+    <h1>Task ${TASK} / Submission ${SUBMISSION_ID}</h1>
+    <p><a href="leaderboard">Go to Leaderboard</a></p>
     <table style="width: 50%; max-width: 450px;">
+      <tr>
+        <td>User ID</td>
+        <td><code>${USER_ID}</code></td>
+      </tr>
+      <tr>
+        <td>Submission ID</td>
+        <td><code>${SUBMISSION_ID}</code></td>
+      </tr>
       <tr>
         <td>Compiler Flags</td>
         <td><code>${COMPILER_FLAGS}</code></td>
