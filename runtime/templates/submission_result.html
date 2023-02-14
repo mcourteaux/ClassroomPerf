@@ -1,0 +1,56 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Submission ${SUBMISSION_ID}</title>
+  </head>
+  <body>
+    <h1>Submission ${SUBMISSION_ID}</h1>
+    <table style="width: 50%; max-width: 450px;">
+      <tr>
+        <td>Compiler Flags</td>
+        <td><code>${COMPILER_FLAGS}</code></td>
+      </tr>
+      <tr>
+        <td>Compile Status</td>
+        <td>${COMPILE_STATUS}</td>
+      </tr>
+      <tr>
+        <td>Correctness Test</td>
+        <td>${CORRECTNESS_TEST}</td>
+      </tr>
+      <tr>
+        <td>Benchmark Best Time</td>
+        <td>${BENCHMARK_BEST_TIME}</td>
+      </tr>
+    </table>
+    <br/>
+    <details>
+      <summary>
+        Compiler Output
+      </summary>
+      <p><pre>
+        ${COMPILER_OUTPUT}
+      </pre></p>
+    </details>
+    <br/>
+    <details>
+      <summary>
+        Disassembly
+      </summary>
+      <p><pre>
+        ${DISASSEMBLY}
+      </pre></p>
+    </details>
+    <br/>
+    <details>
+      <summary>
+        Disassembly with Source
+      </summary>
+      <p><pre>
+        ${DISASSEMBLY_WITH_SOURCE}
+      </pre></p>
+    </details>
+  </body>
+</html>

@@ -22,7 +22,7 @@ inline bool contains_regex(const std::string &code, std::string regex) {
 }
 bool validate_code_input(const std::string &code) {
   // clang-format off
-  static std::vector<std::string> bad_code = {
+  static std::vector<std::string> bad_code_regex = {
       // spawn process:
       "system", "execl", "execlp", "execle", "execv", "execvp", "execvpe",
       "fork",
@@ -39,9 +39,18 @@ bool validate_code_input(const std::string &code) {
       // Competition rules
       "cmath", "math.h", "std::atan", "\\batan\\b", "\\batanf\\b", "\\batanl\\b",
   };
+  static std::vector<std::string> bad_code_plain = {
+      // Digraphs and preprocessor
+      "<%", "%>", "<:", ":>", "%:", "%:%:", "#",
+  };
   // clang-format on
-  for (const std::string &regex : bad_code) {
+  for (const std::string &regex : bad_code_regex) {
     if (contains_regex(code, regex)) {
+      return false;
+    }
+  }
+  for (const std::string &plain : bad_code_plain) {
+    if (contains(code, plain)) {
       return false;
     }
   }
@@ -66,6 +75,11 @@ struct submission_result {
   std::string id, task;
   std::string code;
   std::string flags;
+  std::string disassembly;
+  std::string disassembly_with_source;
+
+  bool compile_successful{false};
+  bool correctness_test_passed{false};
 
   int status{0};
   std::string compiler_output;
@@ -105,7 +119,8 @@ submission_result run_validated_submission(const std::string &task,
   command += " ";
   command += submission_dir.string();
   std::printf("Executing command:\n%s\n", command.c_str());
-  int status = std::system(command.c_str());
+  int exit_code = std::system(command.c_str());
+  int status = WEXITSTATUS(exit_code);
 
   std::printf("code: %d\n", status);
 
@@ -114,15 +129,51 @@ submission_result run_validated_submission(const std::string &task,
   result.flags = flags;
   result.id = id;
   result.task = task;
-  result.compiler_output = read_file(submission_dir / "compile_stderr.log");
+  result.compiler_output =
+      read_file(submission_dir / "compile_stderr.log.html");
   result.status = status;
 
-  if (status == 0) {
-    std::string content = read_file(submission_dir / "best_time.txt");
-    result.best_time = std::atof(content.c_str());
+  if (status != 1) {  // not failed
+    result.compile_successful = true;
+    result.disassembly = read_file(submission_dir / "disassembly.html");
+    result.disassembly_with_source =
+        read_file(submission_dir / "disassembly_with_source.html");
+
+    if (status == 0) {
+      result.correctness_test_passed = true;
+      std::string content = read_file(submission_dir / "best_time.txt");
+      result.best_time = std::atof(content.c_str());
+    } else if (status == 2) {
+      result.correctness_test_passed = false;
+    }
   }
 
   return result;
+}
+
+std::string replace_all(std::string str, const std::string &from,
+                        const std::string &to) {
+  size_t start_pos = 0;
+  while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    str.replace(start_pos, from.length(), to);
+    start_pos +=
+        to.length();  // Handles case where 'to' is a substring of 'from'
+  }
+  return str;
+}
+
+std::string pre(const std::string &str) { return "<pre>" + str + "</pre>"; }
+std::string green(const std::string &str) {
+  return "<span style='color:green;'>" + str + "</span>";
+}
+std::string red(const std::string &str) {
+  return "<span style='color:red;'>" + str + "</span>";
+}
+
+std::string format_time(float time) {
+  char buf[100];
+  sprintf(buf, "%.3fms", time * 1000.0f);
+  return std::string(buf);
 }
 
 int main(int argc, char **argv) {
@@ -162,33 +213,21 @@ int main(int argc, char **argv) {
       submission_result result =
           run_validated_submission(task, "id0", code, flags);
 
-      std::string resp;
-      resp += "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n";
-      resp += "<html>\n<head>\n <meta charset=\"UTF-8\"> </head><body><pre>";
-      resp += "Id: " + result.id + "\n";
-      resp += "Compiler flags: " + result.flags + "\n";
-      resp += "Compiler output:";
-      if (result.compiler_output.empty()) {
-        resp += " (No output)";
-      } else {
-        resp += "\n\n";
-        resp += result.compiler_output;
-        resp += "\n\n";
-      }
-      resp += "\n";
-      if (result.status == 1) {
-        resp += "Did not compile.\n";
-      } else {
-        resp +=
-            "Correctness test passed: " + std::to_string(result.status == 0);
-        resp += "\n";
-        resp += "Best time: " + std::to_string(result.best_time);
-        resp += "\n";
-      }
+      std::string html = read_file("runtime/templates/submission_result.html");
+      html = replace_all(html, "${SUBMISSION_ID}", result.id);
+      html = replace_all(html, "${COMPILER_FLAGS}", result.flags);
+      html = replace_all(html, "${COMPILE_STATUS}",
+                         result.compile_successful ? green("Success") : red("Failed"));
+      html = replace_all(html, "${CORRECTNESS_TEST}",
+                         result.correctness_test_passed ? green("Success") : red("Failed"));
+      html = replace_all(html, "${BENCHMARK_BEST_TIME}",
+                         format_time(result.best_time));
+      html = replace_all(html, "${COMPILER_OUTPUT}", result.compiler_output);
+      html = replace_all(html, "${DISASSEMBLY}", result.disassembly);
+      html = replace_all(html, "${DISASSEMBLY_WITH_SOURCE}",
+                         result.disassembly_with_source);
 
-      resp += "</pre></body></html>";
-
-      res.set_content(resp, "text/html");
+      res.set_content(html, "text/html");
 
     } else {
       res.set_content("Invalid form submission.", "text/plain");
