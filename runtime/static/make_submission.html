@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8">
     <title>Make a new submission</title>
+<style>
+  body { font-family: monospace; }
+</style>
   </head>
   <body>
     <h1>Make a new submittion</h1>
@@ -16,13 +19,17 @@
       <li>No digraphs or preprocessor symbols.</li>
     </ul>
     <p>
-    If you do not <code>inline</code> your function, you'll get to see the dissassmbly of it after submitting.
+    Use the following function signature:
+    </br>
+    <i><pre>float student_atan(float x, float max_error);</pre></i>
+    <p>
+    If you do <i>not</i> <b><code>inline</code></b> your function, you'll get to see the dissassmbly of it after submitting.
     </p>
     <form action="/submit" id="submit_form" method="post">
       <label>Paste your code below.</label><br/>
       <textarea name="code" form="submit_form" cols="100" rows="35"></textarea>
       <br>
-      Compiler flags: <input type="text" name="flags" value="-O3"></input>
+      Compiler flags: <input type="text" name="flags" value=""></input>
       <button type="submit">Submit Code</input>
     </form>
   </body>

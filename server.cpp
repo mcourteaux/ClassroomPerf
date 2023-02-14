@@ -218,7 +218,7 @@ std::string red(const std::string &str) {
 
 std::string format_time(float time) {
   char buf[100];
-  sprintf(buf, "%.3fms", time * 1000.0f);
+  sprintf(buf, "%.3f ms", time * 1000.0f);
   return std::string(buf);
 }
 
@@ -237,21 +237,39 @@ std::string render_leaderboard(std::string task,
   std::string html = read_file("runtime/templates/leaderboard.html");
   html = replace_all(html, "${TASK}", task);
   std::string rows = "";
+  std::set<std::string> users_on_leaderboard;
+  int user_rank = -1;
   for (size_t i = 0; i < entries.size(); ++i) {
     const leaderboard_entry &e = entries[i];
+    auto [it, done] = users_on_leaderboard.insert(e.user_id);
+    std::string class_str = "";
+    if (done) {
+      class_str = "first-of-user";
+      user_rank ++;
+    }
     if (user_id == e.user_id) {
-      rows += "<tr style='background-color: #caddb7;'>";
+      rows += "<tr class='" + class_str + "' style='background-color: #caddb7;'>";
     } else {
-      rows += "<tr>";
+      rows += "<tr class='" + class_str + "'>";
     }
     rows += "<td>" + std::to_string(i) + "</td>";
+    if (done) {
+      rows += "<td>" + std::to_string(user_rank) + "</td>";
+    } else {
+      rows += "<td></td>";
+    }
     if (user_id == e.user_id) {
       rows += "<td><a href='view_submission?id=" + e.submission_id + "'>" +
               e.submission_id + "</a></td>";
     } else {
       rows += "<td>" + e.submission_id + "</td>";
     }
-    rows += "<td>" + e.user_id + "</td>";
+    char buf[12];
+    std::hash<std::string> hasher;
+    size_t hash = hasher(e.user_id);
+    std::sprintf(buf, "#%02zx%02zx%02zx", hash & 0x7f, (hash >> 8) & 0x7f, (hash >> 16) & 0x7f);
+    std::string color (buf);
+    rows += "<td style='background-color: " + color + "; color: white;'>" + e.user_id + "</td>";
     rows += "<td>" + format_time(e.best_time) + "</td>";
     rows += "</tr>\n";
   }
@@ -304,6 +322,7 @@ int main(int argc, char **argv) {
     return 1;
   }
   std::string task = argv[1];
+  // TODO run public with flag
 
   std::srand(std::time(0));
   std::vector<leaderboard_entry> leaderboard;

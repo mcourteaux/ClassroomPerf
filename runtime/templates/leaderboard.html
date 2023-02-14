@@ -5,8 +5,34 @@
     <meta charset="UTF-8">
     <title>Leaderboard: ${TASK}</title>
 <style>
+  body { font-family: monospace; }
   td {
-    border: 1px solid;
+    border: 3px solid transparent;
+  }
+  td:nth-child(1) {
+    text-align: right;
+  }
+  td:nth-child(2) {
+    text-align: right;
+  }
+  td:nth-child(3) {
+    text-align: center;
+  }
+  td:nth-child(4) {
+    text-align: center;
+    font-size: small;
+  }
+  td:nth-child(5) {
+    text-align: right;
+  }
+  tr:nth-child(even) {
+    background-color: #eee;
+  }
+  input[type=checkbox]:checked ~ label ~ table tr {
+    display: none;
+  }
+  tr:nth-child(1), tr.first-of-user {
+    display: table-row !important;
   }
 </style>
   </head>
@@ -15,9 +41,12 @@
     <p>
     <a href="make_submission.html">Make a submission</a>
     </p>
-    <table style="width: 90%; border-collapse: collapse;">
+    <input type="checkbox" id="toggle" checked>
+    <label for="toggle">Only show best submission per user.</label>
+    <table style="width: 90%; border-collapse: collapse; max-width: 800px;">
       <tr>
         <th>Rank</th>
+        <th>User Rank</th>
         <th>Submission ID</th>
         <th>User ID</th>
         <th>Time</th>
