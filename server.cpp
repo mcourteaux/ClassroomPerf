@@ -73,6 +73,8 @@ bool validate_flags(const std::string &flags) {
 }
 
 struct submission_result {
+  bool found{false};
+
   std::string task;
   std::string submission_id;
   std::string user_id;
@@ -80,6 +82,7 @@ struct submission_result {
   std::string flags;
   std::string disassembly;
   std::string disassembly_with_source;
+  std::string benchmark_output;
 
   bool compile_successful{false};
   bool correctness_test_passed{false};
@@ -98,11 +101,11 @@ struct leaderboard_entry {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(leaderboard_entry, task, user_id,
                                    submission_id, best_time);
 
-submission_result run_validated_submission(const std::string &task,
-                                           const std::string &user_id,
-                                           const std::string &submission_id,
-                                           const std::string &code,
-                                           const std::string &flags) {
+int run_validated_submission(const std::string &task,
+                             const std::string &user_id,
+                             const std::string &submission_id,
+                             const std::string &code,
+                             const std::string &flags) {
   std::printf("Running submission.\n");
   std::filesystem::path submission_dir = "submissions";
   submission_dir /= task;
@@ -110,18 +113,30 @@ submission_result run_validated_submission(const std::string &task,
   std::printf("   + mkdir: %s\n", submission_dir.c_str());
   std::filesystem::create_directories(submission_dir);
 
-  std::filesystem::path submission_header =
-      submission_dir / "submitted_code.hpp";
-  std::printf("   + write code: %s\n", submission_header.c_str());
-  std::ofstream file(submission_header.string());
-  file << code;
-  file.close();
+  {
+    std::filesystem::path submission_header =
+        submission_dir / "submitted_code.hpp";
+    std::printf("   + write code: %s\n", submission_header.c_str());
+    std::ofstream file(submission_header.string());
+    file << code;
+    file.close();
+  }
 
-  std::filesystem::path flags_path = submission_dir / "flags.txt";
-  std::printf("   + write flags: %s\n", flags_path.c_str());
-  std::ofstream flags_file(flags_path.string());
-  flags_file << flags;
-  flags_file.close();
+  {
+    std::filesystem::path flags_path = submission_dir / "flags.txt";
+    std::printf("   + write flags: %s\n", flags_path.c_str());
+    std::ofstream flags_file(flags_path.string());
+    flags_file << flags;
+    flags_file.close();
+  }
+
+  {
+    std::filesystem::path userid_path = submission_dir / "user_id";
+    std::printf("   + write user_id: %s\n", userid_path.c_str());
+    std::ofstream userid_file(userid_path.string());
+    userid_file << user_id;
+    userid_file.close();
+  }
 
   std::printf("   + copy benchmark.cpp\n");
   std::filesystem::copy_file("benchmark.cpp", submission_dir / "benchmark.cpp",
@@ -134,30 +149,47 @@ submission_result run_validated_submission(const std::string &task,
   std::printf("Executing command:\n%s\n", command.c_str());
   int exit_code = std::system(command.c_str());
   int status = WEXITSTATUS(exit_code);
-
   std::printf("code: %d\n", status);
 
+  return status;
+}
+
+submission_result load_submission_result(const std::string &task,
+                                         const std::string &submission_id) {
   submission_result result;
-  result.code = code;
-  result.flags = flags;
-  result.user_id = user_id;
+  std::filesystem::path submission_dir = "submissions";
+  submission_dir /= task;
+  submission_dir /= submission_id;
+  if (!std::filesystem::exists(submission_dir)) {
+    result.found = false;
+    return result;
+  }
+
+  result.found = true;
+
+  result.code = read_file(submission_dir / "submitted_code.highlight.html");
+  if (result.code.empty()) {
+    result.code = read_file(submission_dir / "submitted_code.hpp");
+  }
+  result.flags = read_file(submission_dir / "flags.txt");
+  result.user_id = read_file(submission_dir / "user_id");
   result.submission_id = submission_id;
   result.task = task;
-  result.compiler_output =
-      read_file(submission_dir / "compile_stderr.log.html");
-  result.status = status;
+  result.compiler_output = read_file(submission_dir / "compile_stderr.log.html");
+  result.status = std::atoi(read_file(submission_dir / "exit_code").c_str());
+  result.benchmark_output = read_file(submission_dir / "benchmark_output");
 
-  if (status != 1) {  // not failed
+  if (result.status != 1) {  // not failed
     result.compile_successful = true;
     result.disassembly = read_file(submission_dir / "disassembly.html");
     result.disassembly_with_source =
         read_file(submission_dir / "disassembly_with_source.html");
 
-    if (status == 0) {
+    if (result.status == 0) {
       result.correctness_test_passed = true;
       std::string content = read_file(submission_dir / "best_time.txt");
       result.best_time = std::atof(content.c_str());
-    } else if (status == 2) {
+    } else if (result.status == 2) {
       result.correctness_test_passed = false;
     }
   }
@@ -241,10 +273,13 @@ std::string render_submission_result(const submission_result &result) {
       result.correctness_test_passed ? green("Success") : red("Failed"));
   html = replace_all(html, "${BENCHMARK_BEST_TIME}",
                      format_time(result.best_time));
+  html = replace_all(html, "${INPUT_CODE}", result.code);
   html = replace_all(html, "${COMPILER_OUTPUT}", result.compiler_output);
   html = replace_all(html, "${DISASSEMBLY}", result.disassembly);
   html = replace_all(html, "${DISASSEMBLY_WITH_SOURCE}",
                      result.disassembly_with_source);
+  html = replace_all(html, "${BENCHMARK_OUTPUT}",
+                     result.benchmark_output);
   return html;
 }
 
@@ -325,13 +360,11 @@ int main(int argc, char **argv) {
       std::string user_id = anonimify(req.remote_addr, task);
       std::string submission_id = generate_submission_id();
 
-      submission_result result =
-          run_validated_submission(task, user_id, submission_id, code, flags);
+      int exit_code = run_validated_submission(task, user_id, submission_id, code, flags);
 
-      // TODO redirect!
-      std::string html = render_submission_result(result);
+      if (exit_code == 0) {
+        submission_result result = load_submission_result(task, submission_id);
 
-      if (result.correctness_test_passed && result.compile_successful) {
         // add entry to leaderboard
         leaderboard_entry e;
         e.task = task;
@@ -351,7 +384,7 @@ int main(int argc, char **argv) {
         sort_leaderboard(leaderboard);
       }
 
-      res.set_content(html, "text/html");
+      res.set_redirect("view_submission?id=" + submission_id);
 
     } else {
       res.set_content("Invalid form submission.", "text/plain");
@@ -366,27 +399,27 @@ int main(int argc, char **argv) {
                                    [&submission_id](const auto &e) {
                                      return e.submission_id == submission_id;
                                    });
-            if (it == leaderboard.end()) {
+            submission_result result = load_submission_result(task, submission_id);
+            if (!result.found) {
               res.set_content("Submission not found.", "text/plain");
               res.status = 404;
               return;
             }
 
-            const leaderboard_entry &e = *it;
-            if (e.user_id != user_id) {
+            if (result.user_id != user_id) {
               res.set_content("Not your submission.", "text/plain");
               res.status = 403;
               return;
             }
 
-            submission_result result = load_submission_result(submission_id);
             std::string html = render_submission_result(result);
-
             res.set_content(html, "text/html");
           });
 
-  std::printf("Server started at localhost:5000.\n");
-  svr.listen("localhost", 5000);
+  std::string host = "0.0.0.0";
+  int port = 5000;
+  std::printf("Server started at %s:%d.\n", host.c_str(), port);
+  svr.listen(host, port);
 
   return 0;
 }

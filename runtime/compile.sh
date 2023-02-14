@@ -2,8 +2,15 @@
 
 echo "Compiling..."
 
+
 DIR=$1
 cd $DIR
+
+# Syntax highlight source
+highlight -O html --inline-css -f -o submitted_code.highlight.html submitted_code.hpp
+
+
+# Compile
 FLAGS="$(cat flags.txt)"
 BINARY="benchmark"
 g++ -g benchmark.cpp -o $BINARY -fdiagnostics-color=always $FLAGS > compile_stdout.log.ansi 2> compile_stderr.log.ansi
@@ -13,6 +20,7 @@ cat compile_stderr.log.ansi | aha --no-header > compile_stderr.log.html
 
 if [ $COMPILE_RESULT != 0 ]; then
   echo "Compile failed."
+  echo "1" > exit_code
   exit 1
 fi
 
@@ -29,13 +37,19 @@ cat disassembly_with_source.ansi | aha --no-header > disassembly_with_source.htm
 
 echo "Running..."
 
-./benchmark > best_time.txt
+timeout 8 ./benchmark > best_time.txt 2> benchmark_output
 BENCHMARK_RESULT=$?
 
-if [ $BENCHMARK_RESULT != 0 ]; then
+if [ $BENCHMARK_RESULT == 124 ]; then
+  echo "Timeout"
+  echo "4" > exit_code
+  exit 4
+elif [ $BENCHMARK_RESULT != 0 ]; then
   echo "Benchmark unhappy (status $BENCHMARK_RESULT)"
+  echo "2" > exit_code
   exit 2
 fi
 
 echo "Compile.sh completed succesfully"
+echo "0" > exit_code
 exit 0

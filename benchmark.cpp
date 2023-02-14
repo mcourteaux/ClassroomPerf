@@ -1,5 +1,6 @@
-
 // clang-format off
+#include <immintrin.h>
+
 #include "submitted_code.hpp"
 
 #include <chrono>
@@ -24,10 +25,13 @@ int main(int argc, char **argv) {
   // Correctness
   constexpr float max_error = 1e-6;
   for (int i = 0; i < num_inputs; ++i) {
-    float actual = student_atan(values[i % num_inputs], max_error);
-    float expected = std::atan(values[i % num_inputs]);
+    float x = values[i % num_inputs];
+    float actual = student_atan(x, max_error);
+    float expected = std::atan(x);
     if (std::abs(actual - expected) > max_error) {
       std::cerr << "Incorrect atan implementation." << std::endl;
+      std::cerr << "student_atan(" << x << ") = " << actual << std::endl;
+      std::cerr << "std::atan(" << x << ") = " << expected << std::endl;
       return 1;
     }
   }
@@ -60,6 +64,19 @@ int main(int argc, char **argv) {
   }
   std::cerr << "Best time: " << best_time << std::endl;
   std::cerr << r << std::endl;
+
+  // Correctness
+  for (int i = 0; i < num_inputs; ++i) {
+    float x = values[i % num_inputs];
+    float actual = student_atan(x, max_error);
+    float expected = std::atan(x);
+    if (std::abs(actual - expected) > max_error) {
+      std::cerr << "Incorrect atan implementation." << std::endl;
+      std::cerr << "student_atan(" << x << ") = " << actual << std::endl;
+      std::cerr << "std::atan(" << x << ") = " << expected << std::endl;
+      return 1;
+    }
+  }
 
   std::printf("%f\n", best_time);
 
