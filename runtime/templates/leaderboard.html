@@ -5,7 +5,17 @@
     <meta charset="UTF-8">
     <title>Leaderboard: ${TASK}</title>
 <style>
-  body { font-family: monospace; }
+  body { font-family: monospace; background-color: #fff; color: black; }
+  a.button {
+    border: 1px solid black;
+    border-radius: 4px;
+    background-color: #ccc;
+    padding: 0.45em 2em;
+    font-size: large;
+    color: black;
+    margin: 2em;
+    line-height: 3em;
+  }
   td {
     border: 3px solid transparent;
   }
@@ -25,6 +35,9 @@
   td:nth-child(5) {
     text-align: right;
   }
+  td:nth-child(6) {
+    text-align: right;
+  }
   tr:nth-child(even) {
     background-color: #eee;
   }
@@ -39,17 +52,18 @@
   <body>
     <h1>Leaderboard: ${TASK}</h1>
     <p>
-    <a href="make_submission.html">Make a submission</a>
+    <a href="make_submission.html" class="button">Make a submission</a>
     </p>
     <input type="checkbox" id="toggle" checked>
     <label for="toggle">Only show best submission per user.</label>
-    <table style="width: 90%; border-collapse: collapse; max-width: 800px;">
+    <table style="width: 90%; border-collapse: collapse; max-width: 900px;">
       <tr>
         <th>Rank</th>
         <th>User Rank</th>
         <th>Submission ID</th>
         <th>User ID</th>
         <th>Time</th>
+        <th>Cycles / Call</th>
       </tr>
       ${LEADERBOARD_ROWS}
     </table>

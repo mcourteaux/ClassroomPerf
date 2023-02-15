@@ -6,12 +6,29 @@
     <title>Submission ${SUBMISSION_ID}</title>
 <style>
   body { font-family: monospace; }
+  table tr:nth-child(even) { background-color: #eee; }
+  a.button {
+    border: 1px solid black;
+    border-radius: 4px;
+    background-color: #ccc;
+    padding: 0.45em 2em;
+    font-size: large;
+    color: black;
+    margin: 2em;
+    line-height: 3em;
+  }
+  pre { padding: 0.9em; }
+  pre.dark { background-color: #333; color: #eee; }
+  pre.light { background-color: #888; color: #222; }
 </style>
   </head>
   <body>
     <h1>Task ${TASK} / Submission ${SUBMISSION_ID}</h1>
-    <p><a href="leaderboard">Go to Leaderboard</a></p>
-    <table style="width: 50%; max-width: 450px;">
+    <p>
+    <a href="leaderboard" class="button">Go to Leaderboard</a>
+    <a href="make_submission.html" class="button">Make a submission</a>
+    </p>
+    <table style="width: 50%; max-width: 550px;">
       <tr>
         <td>User ID</td>
         <td><code>${USER_ID}</code></td>
@@ -36,42 +53,38 @@
         <td>Benchmark Best Time</td>
         <td>${BENCHMARK_BEST_TIME}</td>
       </tr>
+      <tr>
+        <td>Benchmark Best Cycles / Call</td>
+        <td>${BENCHMARK_CYCLES_PER_CALL}</td>
+      </tr>
     </table>
     <br/>
-    <details>
+    <details open>
       <summary>
         Input code
       </summary>
-      <p><pre>
-${INPUT_CODE}
-      </pre></p>
+      <p><pre class="dark">${INPUT_CODE}</pre></p>
     </details>
     <br/>
     <details>
       <summary>
         Compiler Output
       </summary>
-      <p><pre>
-        ${COMPILER_OUTPUT}
-      </pre></p>
+      <p><pre>${COMPILER_OUTPUT}</pre></p>
     </details>
     <br/>
-    <details>
+    <details open>
       <summary>
         Disassembly
       </summary>
-      <p><pre>
-        ${DISASSEMBLY}
-      </pre></p>
+      <p><pre class="dark">${DISASSEMBLY}</pre></p>
     </details>
     <br/>
     <details>
       <summary>
         Disassembly with Source
       </summary>
-      <p><pre>
-        ${DISASSEMBLY_WITH_SOURCE}
-      </pre></p>
+      <p><pre class="dark">${DISASSEMBLY_WITH_SOURCE}</pre></p>
     </details>
     <br/>
     <details>

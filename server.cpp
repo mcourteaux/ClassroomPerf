@@ -1,9 +1,12 @@
 #include <httplib.h>
 
 #include <cstdio>
+#include <cxxopts.hpp>
 #include <filesystem>
 #include <fstream>
+#if STORE_LEADERBOARD
 #include <nlohmann/json.hpp>
+#endif
 #include <regex>
 #include <sstream>
 
@@ -90,6 +93,7 @@ struct submission_result {
   int status{0};
   std::string compiler_output;
   double best_time{std::numeric_limits<double>::infinity()};
+  double cycles_per_call{std::numeric_limits<double>::infinity()};
 };
 
 struct leaderboard_entry {
@@ -97,9 +101,22 @@ struct leaderboard_entry {
   std::string user_id;
   std::string submission_id;
   double best_time;
+  double cycles_per_call;
 };
+#if STORE_LEADERBOARD
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(leaderboard_entry, task, user_id,
-                                   submission_id, best_time);
+                                   submission_id, best_time, cycles_per_call);
+#endif
+
+leaderboard_entry make_leaderboard_entry(const submission_result &r) {
+  leaderboard_entry e;
+  e.task = r.task;
+  e.best_time = r.best_time;
+  e.user_id = r.user_id;
+  e.submission_id = r.submission_id;
+  e.cycles_per_call = r.cycles_per_call;
+  return e;
+}
 
 int run_validated_submission(const std::string &task,
                              const std::string &user_id,
@@ -175,7 +192,8 @@ submission_result load_submission_result(const std::string &task,
   result.user_id = read_file(submission_dir / "user_id");
   result.submission_id = submission_id;
   result.task = task;
-  result.compiler_output = read_file(submission_dir / "compile_stderr.log.html");
+  result.compiler_output =
+      read_file(submission_dir / "compile_stderr.log.html");
   result.status = std::atoi(read_file(submission_dir / "exit_code").c_str());
   result.benchmark_output = read_file(submission_dir / "benchmark_output");
 
@@ -188,7 +206,9 @@ submission_result load_submission_result(const std::string &task,
     if (result.status == 0) {
       result.correctness_test_passed = true;
       std::string content = read_file(submission_dir / "best_time.txt");
-      result.best_time = std::atof(content.c_str());
+      std::stringstream ss(content);
+      ss >> result.best_time;
+      ss >> result.cycles_per_call;
     } else if (result.status == 2) {
       result.correctness_test_passed = false;
     }
@@ -218,7 +238,19 @@ std::string red(const std::string &str) {
 
 std::string format_time(float time) {
   char buf[100];
-  sprintf(buf, "%.3f ms", time * 1000.0f);
+  // sprintf(buf, "%.3f \u00b5s", time * 1e6f);
+  sprintf(buf, "%.5f ms", time * 1e3f);
+  // {
+  //   float ms = std::floor(time * 1e6f) * 1e-3;
+  //   float us = time * 1e6f - ms * 1e3f;
+  //   sprintf(buf, "%.3f ms + %.03f \u00b5s", ms, us);
+  // }
+  return std::string(buf);
+}
+
+std::string format_cycles_per_call(float cycles_per_call) {
+  char buf[100];
+  sprintf(buf, "%.3f cycles/call", cycles_per_call);
   return std::string(buf);
 }
 
@@ -233,7 +265,7 @@ std::string anonimify(std::string input, const std::string &task) {
 
 std::string render_leaderboard(std::string task,
                                const std::vector<leaderboard_entry> &entries,
-                               const std::string &user_id) {
+                               const std::string &user_id, bool public_mode) {
   std::string html = read_file("runtime/templates/leaderboard.html");
   html = replace_all(html, "${TASK}", task);
   std::string rows = "";
@@ -245,10 +277,11 @@ std::string render_leaderboard(std::string task,
     std::string class_str = "";
     if (done) {
       class_str = "first-of-user";
-      user_rank ++;
+      user_rank++;
     }
     if (user_id == e.user_id) {
-      rows += "<tr class='" + class_str + "' style='background-color: #caddb7;'>";
+      rows +=
+          "<tr class='" + class_str + "' style='background-color: #caddb7;'>";
     } else {
       rows += "<tr class='" + class_str + "'>";
     }
@@ -258,7 +291,7 @@ std::string render_leaderboard(std::string task,
     } else {
       rows += "<td></td>";
     }
-    if (user_id == e.user_id) {
+    if (user_id == e.user_id || public_mode) {
       rows += "<td><a href='view_submission?id=" + e.submission_id + "'>" +
               e.submission_id + "</a></td>";
     } else {
@@ -267,10 +300,13 @@ std::string render_leaderboard(std::string task,
     char buf[12];
     std::hash<std::string> hasher;
     size_t hash = hasher(e.user_id);
-    std::sprintf(buf, "#%02zx%02zx%02zx", hash & 0x7f, (hash >> 8) & 0x7f, (hash >> 16) & 0x7f);
-    std::string color (buf);
-    rows += "<td style='background-color: " + color + "; color: white;'>" + e.user_id + "</td>";
+    std::sprintf(buf, "#%02zx%02zx%02zx", hash & 0x7f, (hash >> 8) & 0x7f,
+                 (hash >> 16) & 0x7f);
+    std::string color(buf);
+    rows += "<td style='background-color: " + color + "; color: white;'>" +
+            e.user_id + "</td>";
     rows += "<td>" + format_time(e.best_time) + "</td>";
+    rows += "<td>" + format_cycles_per_call(e.cycles_per_call) + "</td>";
     rows += "</tr>\n";
   }
   html = replace_all(html, "${LEADERBOARD_ROWS}", rows);
@@ -291,13 +327,14 @@ std::string render_submission_result(const submission_result &result) {
       result.correctness_test_passed ? green("Success") : red("Failed"));
   html = replace_all(html, "${BENCHMARK_BEST_TIME}",
                      format_time(result.best_time));
+  html = replace_all(html, "${BENCHMARK_CYCLES_PER_CALL}",
+                     format_cycles_per_call(result.cycles_per_call));
   html = replace_all(html, "${INPUT_CODE}", result.code);
   html = replace_all(html, "${COMPILER_OUTPUT}", result.compiler_output);
   html = replace_all(html, "${DISASSEMBLY}", result.disassembly);
   html = replace_all(html, "${DISASSEMBLY_WITH_SOURCE}",
                      result.disassembly_with_source);
-  html = replace_all(html, "${BENCHMARK_OUTPUT}",
-                     result.benchmark_output);
+  html = replace_all(html, "${BENCHMARK_OUTPUT}", result.benchmark_output);
   return html;
 }
 
@@ -306,7 +343,8 @@ std::string generate_submission_id() {
   char buf[100];
   submission_id_counter++;
   int rand_val = std::rand() % 0xffff;
-  std::sprintf(buf, "%04x-%04x", rand_val, submission_id_counter);
+  // std::sprintf(buf, "%04x-%04x", rand_val, submission_id_counter);
+  std::sprintf(buf, "%04d-%04x", submission_id_counter, rand_val);
   return std::string(buf);
 }
 
@@ -316,48 +354,88 @@ void sort_leaderboard(std::vector<leaderboard_entry> &leaderboard) {
 }
 
 int main(int argc, char **argv) {
-  httplib::Server svr;
-  if (argc != 2) {
-    std::printf("run with arg: <taskname>");
-    return 1;
+  // clang-format off
+  cxxopts::Options options("ClassroomPerf", "Classroom performance competition");
+  options.add_options()
+    ("task", "The task name for this competition.", cxxopts::value<std::string>())
+    ("host", "Bind address for the server.", cxxopts::value<std::string>()->default_value("0.0.0.0"))
+    ("port", "Bind port for the server.", cxxopts::value<int>()->default_value("5000"))
+    ("P,public", "Run the server publicly.")
+    ("R,regenerate-leaderboard", "Regenerate the leaderboard from the submission folder.")
+    ;
+  options.parse_positional({"task"});
+  // clang-format on
+
+  auto args = options.parse(argc, argv);
+  if (args.count("help")) {
+    std::cout << options.help() << std::endl;
+    std::exit(0);
   }
-  std::string task = argv[1];
-  // TODO run public with flag
+
+  std::string task = args["task"].as<std::string>();
+  bool public_mode = args["public"].count();
 
   std::srand(std::time(0));
   std::vector<leaderboard_entry> leaderboard;
+
+  // Create submissions dir
+  std::filesystem::path submission_dir = "submissions";
+  submission_dir /= task;
+  std::filesystem::create_directories(submission_dir);
 
   // Load the leaderboard for this task
   std::filesystem::path leaderboard_dir = "leaderboard";
   leaderboard_dir /= task;
   std::filesystem::create_directories(leaderboard_dir);
   submission_id_counter = 0;
-  for (auto it = std::filesystem::directory_iterator(
-           leaderboard_dir,
-           std::filesystem::directory_options::skip_permission_denied);
-       it != std::filesystem::directory_iterator(); ++it) {
-    if (it->path().extension().string() == ".json") {
-      submission_id_counter++;
-      std::printf("Loading leaderboard entry: %s\n", it->path().c_str());
-      std::string lbes = read_file(it->path().string());
-      nlohmann::json js = nlohmann::json::parse(lbes);
-      leaderboard_entry entry;
-      js.get_to(entry);
+  if (args.count("regenerate-leaderboard") || !STORE_LEADERBOARD) {
+    std::printf("Regenerating leaderboard...");
 
-      leaderboard.push_back(std::move(entry));
+    for (auto it = std::filesystem::directory_iterator(
+             submission_dir,
+             std::filesystem::directory_options::skip_permission_denied);
+         it != std::filesystem::directory_iterator(); ++it) {
+      if (std::filesystem::is_directory(it->path())) {
+        submission_id_counter++;
+        submission_result result =
+            load_submission_result(task, it->path().filename().string());
+        if (result.compile_successful && result.correctness_test_passed) {
+          leaderboard_entry e = make_leaderboard_entry(result);
+          leaderboard.push_back(std::move(e));
+        }
+      }
     }
+  } else {
+#if STORE_LEADERBOARD
+    for (auto it = std::filesystem::directory_iterator(
+             leaderboard_dir,
+             std::filesystem::directory_options::skip_permission_denied);
+         it != std::filesystem::directory_iterator(); ++it) {
+      if (it->path().extension().string() == ".json") {
+        submission_id_counter++;
+        std::printf("Loading leaderboard entry: %s\n", it->path().c_str());
+        std::string lbes = read_file(it->path().string());
+        nlohmann::json js = nlohmann::json::parse(lbes);
+        leaderboard_entry entry;
+        js.get_to(entry);
+
+        leaderboard.push_back(std::move(entry));
+      }
+    }
+#endif
   }
   std::printf("Loaded %zu leaderboard entries.\n", leaderboard.size());
   sort_leaderboard(leaderboard);
 
+  httplib::Server svr;
   svr.set_mount_point("/", "./runtime/static/");
-  svr.Get("/(leaderboard)?",
-          [&](const httplib::Request &req, httplib::Response &res) {
-            std::string user_id = anonimify(req.remote_addr, task);
-            res.set_content(render_leaderboard(task, leaderboard, user_id),
-                            "text/html");
-            res.status = 200;
-          });
+  svr.Get("/(leaderboard)?", [&](const httplib::Request &req,
+                                 httplib::Response &res) {
+    std::string user_id = anonimify(req.remote_addr, task);
+    res.set_content(render_leaderboard(task, leaderboard, user_id, public_mode),
+                    "text/html");
+    res.status = 200;
+  });
   svr.Post("/submit", [&](const httplib::Request &req, httplib::Response &res) {
     if (req.has_param("code") && req.has_param("flags")) {
       std::string code = req.get_param_value("code");
@@ -379,26 +457,25 @@ int main(int argc, char **argv) {
       std::string user_id = anonimify(req.remote_addr, task);
       std::string submission_id = generate_submission_id();
 
-      int exit_code = run_validated_submission(task, user_id, submission_id, code, flags);
+      int exit_code =
+          run_validated_submission(task, user_id, submission_id, code, flags);
 
       if (exit_code == 0) {
         submission_result result = load_submission_result(task, submission_id);
 
-        // add entry to leaderboard
-        leaderboard_entry e;
-        e.task = task;
-        e.best_time = result.best_time;
-        e.user_id = result.user_id;
-        e.submission_id = result.submission_id;
+        leaderboard_entry e = make_leaderboard_entry(result);
 
         // save the entry
+#if STORE_LEADERBOARD
         std::filesystem::path lbep =
             leaderboard_dir / (e.submission_id + ".json");
         nlohmann::json js = e;
         std::ofstream lbef(lbep.string());
         lbef << js.dump(2);
         lbef.close();
+#endif
 
+        // add entry to leaderboard
         leaderboard.push_back(std::move(e));
         sort_leaderboard(leaderboard);
       }
@@ -410,33 +487,35 @@ int main(int argc, char **argv) {
       res.status = 404;
     }
   });
-  svr.Get("/view_submission",
-          [&](const httplib::Request &req, httplib::Response &res) {
-            std::string user_id = anonimify(req.remote_addr, task);
-            std::string submission_id = req.get_param_value("id");
-            auto it = std::find_if(leaderboard.begin(), leaderboard.end(),
-                                   [&submission_id](const auto &e) {
-                                     return e.submission_id == submission_id;
-                                   });
-            submission_result result = load_submission_result(task, submission_id);
-            if (!result.found) {
-              res.set_content("Submission not found.", "text/plain");
-              res.status = 404;
-              return;
-            }
+  svr.Get("/view_submission", [&](const httplib::Request &req,
+                                  httplib::Response &res) {
+    std::string user_id = anonimify(req.remote_addr, task);
+    std::string submission_id = req.get_param_value("id");
+    auto it = std::find_if(leaderboard.begin(), leaderboard.end(),
+                           [&submission_id](const auto &e) {
+                             return e.submission_id == submission_id;
+                           });
+    submission_result result = load_submission_result(task, submission_id);
+    if (!result.found) {
+      res.set_content("Submission not found.", "text/plain");
+      res.status = 404;
+      return;
+    }
 
-            if (result.user_id != user_id) {
-              res.set_content("Not your submission.", "text/plain");
-              res.status = 403;
-              return;
-            }
+    if (!public_mode) {
+      if (result.user_id != user_id) {
+        res.set_content("Not your submission.", "text/plain");
+        res.status = 403;
+        return;
+      }
+    }
 
-            std::string html = render_submission_result(result);
-            res.set_content(html, "text/html");
-          });
+    std::string html = render_submission_result(result);
+    res.set_content(html, "text/html");
+  });
 
-  std::string host = "0.0.0.0";
-  int port = 5000;
+  std::string host = args["host"].as<std::string>();
+  int port = args["port"].as<int>();
   std::printf("Server started at %s:%d.\n", host.c_str(), port);
   svr.listen(host, port);
 

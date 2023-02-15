@@ -7,7 +7,7 @@ DIR=$1
 cd $DIR
 
 # Syntax highlight source
-highlight -O html --inline-css -f -o submitted_code.highlight.html submitted_code.hpp
+highlight -s molokai -O html --inline-css -f -o submitted_code.highlight.html submitted_code.hpp
 
 
 # Compile
