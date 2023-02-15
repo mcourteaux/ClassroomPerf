@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
   int64_t best_cycle_count = std::numeric_limits<int64_t>::max();
   int best_run = -1;
   constexpr int test_count = 1024 * 1024;
-  for (int run = 0; run < 30 || best_run > run - 5; ++run) {
+  for (int run = 0; run < 40 || best_run > run - 10; ++run) {
     high_resolution_clock::time_point start = high_resolution_clock::now();
     int64_t start_cycle = __rdtsc();
 #if 1

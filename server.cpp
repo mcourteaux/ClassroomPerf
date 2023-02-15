@@ -31,7 +31,7 @@ bool validate_code_input(const std::string &code) {
       "system", "execl", "execlp", "execle", "execv", "execvp", "execvpe",
       "fork",
       // overriding main:
-      "\\bmain\\b", "argv", "argc",
+      "\\bmain\\b", "argv", "argc", "\\b_main\\b", "\\bstart\\b",
       // abusive memory:
       "calloc", "malloc", "free", "\\bnew\\b", "\\bmmap\\b",
       // multithrading:
@@ -89,6 +89,7 @@ struct submission_result {
 
   bool compile_successful{false};
   bool correctness_test_passed{false};
+  std::string author;
 
   int status{0};
   std::string compiler_output;
@@ -102,6 +103,7 @@ struct leaderboard_entry {
   std::string submission_id;
   double best_time;
   double cycles_per_call;
+  std::string author;
 };
 #if STORE_LEADERBOARD
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(leaderboard_entry, task, user_id,
@@ -115,14 +117,15 @@ leaderboard_entry make_leaderboard_entry(const submission_result &r) {
   e.user_id = r.user_id;
   e.submission_id = r.submission_id;
   e.cycles_per_call = r.cycles_per_call;
+  e.author = r.author;
   return e;
 }
 
 int run_validated_submission(const std::string &task,
                              const std::string &user_id,
                              const std::string &submission_id,
-                             const std::string &code,
-                             const std::string &flags) {
+                             const std::string &code, const std::string &flags,
+                             const std::string &author) {
   std::printf("Running submission.\n");
   std::filesystem::path submission_dir = "submissions";
   submission_dir /= task;
@@ -153,6 +156,13 @@ int run_validated_submission(const std::string &task,
     std::ofstream userid_file(userid_path.string());
     userid_file << user_id;
     userid_file.close();
+  }
+  {
+    std::filesystem::path author_path = submission_dir / "author";
+    std::printf("   + write author: %s\n", author_path.c_str());
+    std::ofstream author_file(author_path.string());
+    author_file << author;
+    author_file.close();
   }
 
   std::printf("   + copy benchmark.cpp\n");
@@ -190,6 +200,7 @@ submission_result load_submission_result(const std::string &task,
   }
   result.flags = read_file(submission_dir / "flags.txt");
   result.user_id = read_file(submission_dir / "user_id");
+  result.author = read_file(submission_dir / "author");
   result.submission_id = submission_id;
   result.task = task;
   result.compiler_output =
@@ -254,6 +265,25 @@ std::string format_cycles_per_call(float cycles_per_call) {
   return std::string(buf);
 }
 
+std::string format_author(const std::string &auth, bool text, bool icon) {
+  std::string r;
+  if (icon) {
+    if (auth == "Human") {
+      r += "👩";
+    }
+    if (auth == "ChatGPT") {
+      r += "🤖";
+    }
+  }
+  if (text) {
+    if (icon) {
+      r += " ";
+    }
+    r += auth;
+  }
+  return r;
+}
+
 std::string anonimify(std::string input, const std::string &task) {
   input += "__" + task + "__saltyAZErap";
   std::hash<std::string> hasher;
@@ -307,6 +337,7 @@ std::string render_leaderboard(std::string task,
             e.user_id + "</td>";
     rows += "<td>" + format_time(e.best_time) + "</td>";
     rows += "<td>" + format_cycles_per_call(e.cycles_per_call) + "</td>";
+    rows += "<td>" + format_author(e.author, false, true) + "</td>";
     rows += "</tr>\n";
   }
   html = replace_all(html, "${LEADERBOARD_ROWS}", rows);
@@ -315,26 +346,22 @@ std::string render_leaderboard(std::string task,
 
 std::string render_submission_result(const submission_result &result) {
   std::string html = read_file("runtime/templates/submission_result.html");
+  // clang-format off
   html = replace_all(html, "${TASK}", result.task);
   html = replace_all(html, "${USER_ID}", result.user_id);
   html = replace_all(html, "${SUBMISSION_ID}", result.submission_id);
   html = replace_all(html, "${COMPILER_FLAGS}", result.flags);
-  html =
-      replace_all(html, "${COMPILE_STATUS}",
-                  result.compile_successful ? green("Success") : red("Failed"));
-  html = replace_all(
-      html, "${CORRECTNESS_TEST}",
-      result.correctness_test_passed ? green("Success") : red("Failed"));
-  html = replace_all(html, "${BENCHMARK_BEST_TIME}",
-                     format_time(result.best_time));
-  html = replace_all(html, "${BENCHMARK_CYCLES_PER_CALL}",
-                     format_cycles_per_call(result.cycles_per_call));
+  html = replace_all(html, "${COMPILE_STATUS}", result.compile_successful ? green("Success") : red("Failed"));
+  html = replace_all(html, "${CORRECTNESS_TEST}", result.correctness_test_passed ? green("Success") : red("Failed"));
+  html = replace_all(html, "${BENCHMARK_BEST_TIME}", format_time(result.best_time));
+  html = replace_all(html, "${BENCHMARK_CYCLES_PER_CALL}", format_cycles_per_call(result.cycles_per_call));
+  html = replace_all(html, "${AI_GENERATED}", format_author(result.author, true, true));
   html = replace_all(html, "${INPUT_CODE}", result.code);
   html = replace_all(html, "${COMPILER_OUTPUT}", result.compiler_output);
   html = replace_all(html, "${DISASSEMBLY}", result.disassembly);
-  html = replace_all(html, "${DISASSEMBLY_WITH_SOURCE}",
-                     result.disassembly_with_source);
+  html = replace_all(html, "${DISASSEMBLY_WITH_SOURCE}", result.disassembly_with_source);
   html = replace_all(html, "${BENCHMARK_OUTPUT}", result.benchmark_output);
+  // clang-format on
   return html;
 }
 
@@ -343,7 +370,6 @@ std::string generate_submission_id() {
   char buf[100];
   submission_id_counter++;
   int rand_val = std::rand() % 0xffff;
-  // std::sprintf(buf, "%04x-%04x", rand_val, submission_id_counter);
   std::sprintf(buf, "%04d-%04x", submission_id_counter, rand_val);
   return std::string(buf);
 }
@@ -437,9 +463,18 @@ int main(int argc, char **argv) {
     res.status = 200;
   });
   svr.Post("/submit", [&](const httplib::Request &req, httplib::Response &res) {
-    if (req.has_param("code") && req.has_param("flags")) {
+    if (req.has_param("code") && req.has_param("flags") &&
+        req.has_param("author")) {
       std::string code = req.get_param_value("code");
       std::string flags = req.get_param_value("flags");
+      std::string author = req.get_param_value("author");
+
+      if (!(author == "Human" || author == "ChatGPT")) {
+        res.set_content("Invalid form submission.", "text/plain");
+        res.status = 404;
+        return;
+      }
+
       bool valid_code = validate_code_input(code);
       if (!valid_code) {
         res.set_content("Code does not comply with the rules!", "text/plain");
@@ -457,8 +492,8 @@ int main(int argc, char **argv) {
       std::string user_id = anonimify(req.remote_addr, task);
       std::string submission_id = generate_submission_id();
 
-      int exit_code =
-          run_validated_submission(task, user_id, submission_id, code, flags);
+      int exit_code = run_validated_submission(task, user_id, submission_id,
+                                               code, flags, author);
 
       if (exit_code == 0) {
         submission_result result = load_submission_result(task, submission_id);
