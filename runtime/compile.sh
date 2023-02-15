@@ -27,6 +27,9 @@ fi
 # Get disassembly from function
 OBJDUMP=$HOME/w/3rd/binutils/binutils/objdump
 if [ ! -e $OBJDUMP ]; then
+  OBJDUMP=$HOME/binutils-2.40/build/binutils/objdump
+fi
+if [ ! -e $OBJDUMP ]; then
   OBJDUMP=objdump
 fi
 
