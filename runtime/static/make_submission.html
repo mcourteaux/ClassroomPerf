@@ -7,11 +7,15 @@
   body { font-family: monospace; }
   span.icon { font-size: 2em; }
   button[type="submit"] {
-    display: none;
+    visibility: hidden;
   }
   input[type="radio"].option:checked ~ button[type="submit"] {
-    display: block;
+    visibility: visible;
   }
+  label {
+    margin: 1em 3em 1em 0em;
+  }
+
 </style>
   </head>
   <body>
@@ -39,10 +43,19 @@
       Compiler flags: <input type="text" name="flags" value=""></input>
       <br><br>
       <input type="radio" id="author_not_specified" name="author" value="N/A" checked style="display:none;">
+
       <input type="radio" id="author_human" name="author" class="option" value="Human">
       <label for="author_human"><span class="icon">👩</span> Human</label>
+
       <input type="radio" id="author_chatgpt" name="author" class="option" value="ChatGPT">
-      <label for="author_human"><span class="icon">🤖</span> ChatGPT</label>
+      <label for="author_chatgpt"><span class="icon">🤖</span> ChatGPT</label>
+
+      <input type="radio" id="author_humanteam" name="author" class="option" value="HumanTeam">
+      <label for="author_humanteam"><span class="icon">👩👩</span> Human Team</label>
+
+      <input type="radio" id="author_hybridteam" name="author" class="option" value="HybridTeam">
+      <label for="author_hybridteam"><span class="icon">🤖👩</span> Hybrid Team</label>
+
       <br><br>
       <button type="submit">Submit Code</input>
     </form>

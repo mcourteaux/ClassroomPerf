@@ -125,7 +125,7 @@ int run_validated_submission(const std::string &task,
                              const std::string &user_id,
                              const std::string &submission_id,
                              const std::string &code, const std::string &flags,
-                             const std::string &author) {
+                             const std::string &author, const std::string &ip) {
   std::printf("Running submission.\n");
   std::filesystem::path submission_dir = "submissions";
   submission_dir /= task;
@@ -163,6 +163,13 @@ int run_validated_submission(const std::string &task,
     std::ofstream author_file(author_path.string());
     author_file << author;
     author_file.close();
+  }
+  {
+    std::filesystem::path ip_path = submission_dir / "ip";
+    std::printf("   + write ip: %s\n", ip_path.c_str());
+    std::ofstream ip_file(ip_path.string());
+    ip_file << ip;
+    ip_file.close();
   }
 
   std::printf("   + copy benchmark.cpp\n");
@@ -273,6 +280,12 @@ std::string format_author(const std::string &auth, bool text, bool icon) {
     }
     if (auth == "ChatGPT") {
       r += "🤖";
+    }
+    if (auth == "HumanTeam") {
+      r += "👩👩";
+    }
+    if (auth == "HybridTeam") {
+      r += "🤖👩";
     }
   }
   if (text) {
@@ -469,7 +482,8 @@ int main(int argc, char **argv) {
       std::string flags = req.get_param_value("flags");
       std::string author = req.get_param_value("author");
 
-      if (!(author == "Human" || author == "ChatGPT")) {
+      if (!(author == "Human" || author == "ChatGPT" || author == "HumanTeam" ||
+            author == "HybridTeam")) {
         res.set_content("Invalid form submission.", "text/plain");
         res.status = 404;
         return;
@@ -492,8 +506,8 @@ int main(int argc, char **argv) {
       std::string user_id = anonimify(req.remote_addr, task);
       std::string submission_id = generate_submission_id();
 
-      int exit_code = run_validated_submission(task, user_id, submission_id,
-                                               code, flags, author);
+      int exit_code = run_validated_submission(
+          task, user_id, submission_id, code, flags, author, req.remote_addr);
 
       if (exit_code == 0) {
         submission_result result = load_submission_result(task, submission_id);
