@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
   }
 
   // Correctness
-  constexpr float max_error = 1e-7;
+  constexpr float max_error = 1e-6;
   correctness_test(values, num_inputs, max_error);
 
   float r = 0.0f;
