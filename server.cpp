@@ -30,6 +30,8 @@ bool validate_code_input(const std::string &code) {
       // spawn process:
       "system", "execl", "execlp", "execle", "execv", "execvp", "execvpe",
       "fork",
+      // inline assembly:
+      "\\basm\\b",
       // overriding main:
       "\\bmain\\b", "argv", "argc", "\\b_main\\b", "\\bstart\\b",
       // abusive memory:
