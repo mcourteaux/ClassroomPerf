@@ -10,11 +10,20 @@
 #include <regex>
 #include <sstream>
 
-std::string read_file(std::filesystem::path path) {
+std::string read_file(std::filesystem::path path, bool strip) {
   std::ifstream t(path.string());
   std::stringstream buffer;
   buffer << t.rdbuf();
-  return buffer.str();
+  std::string str = buffer.str();
+  if (strip) {
+    int begin = 0;
+    while (begin < str.size() && str[begin] == '\n') { ++begin; }
+    int end = str.size() - 1;
+    while (end >= 0 && str[end] == '\n') { --end; }
+    return str.substr(begin, end - begin);
+  } else {
+    return str;
+  }
 }
 
 inline bool contains(const std::string &code, std::string substr) {
