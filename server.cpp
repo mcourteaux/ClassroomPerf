@@ -10,7 +10,7 @@
 #include <regex>
 #include <sstream>
 
-std::string read_file(std::filesystem::path path, bool strip) {
+std::string read_file(std::filesystem::path path, bool strip=true) {
   std::ifstream t(path.string());
   std::stringstream buffer;
   buffer << t.rdbuf();
