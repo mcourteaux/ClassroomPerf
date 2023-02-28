@@ -406,16 +406,30 @@ std::string generate_user_id() {
 }
 
 std::string find_user_id_in_request(const httplib::Request &req) {
-  static std::string header {"Cookie"};
+  static std::string header{"Cookie"};
   int count = req.get_header_value_count(header);
   for (int i = 0; i < count; ++i) {
-    std::string cookie = req.get_header_value(header, i);
-    int space_idx = cookie.find("=");
-    if (space_idx != std::string::npos) {
-      std::string cookie_name = cookie.substr(0, space_idx);
-      std::string cookie_value = cookie.substr(space_idx + 1);
-      if (cookie_name == "userId") {
-        return cookie_value;
+    std::string cookie_str = req.get_header_value(header, i);
+    int offset = 0;
+    while (true) {
+      int cookie_end = cookie_str.find("; ", offset);
+      std::string cookie;
+      if (cookie_end == std::string::npos) {
+        cookie = cookie_str.substr(offset, cookie_end - offset);
+      }
+      int space_idx = cookie.find("=");
+      if (space_idx != std::string::npos) {
+        std::string cookie_name = cookie.substr(0, space_idx);
+        std::string cookie_value = cookie.substr(space_idx + 1);
+        if (cookie_name == "userId") {
+          return cookie_value;
+        }
+      }
+
+      if (cookie_end == std::string::npos) {
+        break;
+      } else {
+        offset = cookie_end + 2;
       }
     }
   }
@@ -500,8 +514,7 @@ int main(int argc, char **argv) {
   svr.set_mount_point("/", "./runtime/static/");
   svr.Get("/(leaderboard)?", [&](const httplib::Request &req,
                                  httplib::Response &res) {
-
-    //std::string user_id = anonimify(req.remote_addr, task);
+    // std::string user_id = anonimify(req.remote_addr, task);
     std::string user_id = find_user_id_in_request(req);
     if (user_id == "") {
       res.set_header("Set-Cookie", "userId=" + generate_user_id());
