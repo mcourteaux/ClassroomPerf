@@ -36,7 +36,7 @@ fi
 SYMBOL_NAME="student_atan"
 SYMBOL=$($OBJDUMP -t $BINARY | grep ' g  ' | grep $SYMBOL_NAME | cut -d\  -f 6)
 echo "Found symbol: $SYMBOL"
-SYMBOL="_Z12student_atanff"
+SYMBOL="_Z12student_atanf"
 $OBJDUMP $BINARY --disassembler-color=extended-color --visualize-jumps=extended-color --disassemble=$SYMBOL --no-addresses --no-show-raw-insn > disassembly.ansi
 $OBJDUMP $BINARY --disassembler-color=extended-color --visualize-jumps=extended-color --disassemble=$SYMBOL --no-addresses --no-show-raw-insn -S > disassembly_with_source.ansi
 cat disassembly.ansi | aha --no-header > disassembly.html

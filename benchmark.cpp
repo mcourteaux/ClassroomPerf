@@ -6,6 +6,8 @@
 # include <x86intrin.h>
 #endif
 
+#define MAX_ERROR 1e-6f
+
 #include "submitted_code.hpp"
 
 #include <chrono>
@@ -18,7 +20,7 @@
 static void correctness_test(float *values, int num_inputs, float max_error) {
   for (int i = 0; i < num_inputs; ++i) {
     float x = values[i % num_inputs];
-    float actual = student_atan(x, max_error);
+    float actual = student_atan(x);
     float expected = std::atan(x);
     if (std::abs(actual - expected) > max_error) {
       std::cerr << "Incorrect atan implementation." << std::endl;
@@ -46,7 +48,7 @@ int main(int argc, char **argv) {
   }
 
   // Correctness
-  constexpr float max_error = 1e-6;
+  constexpr float max_error = MAX_ERROR;
   correctness_test(values, num_inputs, max_error);
 
   float r = 0.0f;
@@ -61,14 +63,14 @@ int main(int argc, char **argv) {
     int64_t start_cycle = __rdtsc();
 #if 1
     for (int i = 0; i < test_count; i += 8) {
-      r += student_atan(values[(i + 0) % num_inputs], max_error);
-      r += student_atan(values[(i + 1) % num_inputs], max_error);
-      r += student_atan(values[(i + 2) % num_inputs], max_error);
-      r += student_atan(values[(i + 3) % num_inputs], max_error);
-      r += student_atan(values[(i + 4) % num_inputs], max_error);
-      r += student_atan(values[(i + 5) % num_inputs], max_error);
-      r += student_atan(values[(i + 6) % num_inputs], max_error);
-      r += student_atan(values[(i + 7) % num_inputs], max_error);
+      r += student_atan(values[(i + 0) % num_inputs]);
+      r += student_atan(values[(i + 1) % num_inputs]);
+      r += student_atan(values[(i + 2) % num_inputs]);
+      r += student_atan(values[(i + 3) % num_inputs]);
+      r += student_atan(values[(i + 4) % num_inputs]);
+      r += student_atan(values[(i + 5) % num_inputs]);
+      r += student_atan(values[(i + 6) % num_inputs]);
+      r += student_atan(values[(i + 7) % num_inputs]);
     }
 #else
     for (int i = 0; i < test_count; ++i) {
