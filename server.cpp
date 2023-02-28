@@ -18,8 +18,8 @@ std::string read_file(std::filesystem::path path, bool strip=true) {
   if (strip) {
     int begin = 0;
     while (begin < str.size() && str[begin] == '\n') { ++begin; }
-    int end = str.size() - 1;
-    while (end >= 0 && str[end] == '\n') { --end; }
+    int end = str.size();
+    while (end > 0 && str[end - 1] == '\n') { --end; }
     return str.substr(begin, end - begin);
   } else {
     return str;
