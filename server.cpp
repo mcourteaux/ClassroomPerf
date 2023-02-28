@@ -31,7 +31,7 @@ bool validate_code_input(const std::string &code) {
       "system", "execl", "execlp", "execle", "execv", "execvp", "execvpe",
       "fork",
       // inline assembly:
-      "\\basm\\b",
+      "\\basm",
       // overriding main:
       "\\bmain\\b", "argv", "argc", "\\b_main\\b", "\\bstart\\b",
       // abusive memory:
@@ -289,6 +289,9 @@ std::string format_author(const std::string &auth, bool text, bool icon) {
     if (auth == "HybridTeam") {
       r += "🤖👩";
     }
+    if (auth == "Teacher") {
+      r += "🧑‍🏫";
+    }
   }
   if (text) {
     if (icon) {
@@ -349,7 +352,7 @@ std::string render_leaderboard(std::string task,
                  (hash >> 16) & 0x7f);
     std::string color(buf);
     rows += "<td style='background-color: " + color + "; color: white;'>" +
-            e.user_id + "</td>";
+            anonimify(e.user_id, task) + "</td>";
     rows += "<td>" + format_time(e.best_time) + "</td>";
     rows += "<td>" + format_cycles_per_call(e.cycles_per_call) + "</td>";
     rows += "<td>" + format_author(e.author, false, true) + "</td>";
@@ -363,7 +366,7 @@ std::string render_submission_result(const submission_result &result) {
   std::string html = read_file("runtime/templates/submission_result.html");
   // clang-format off
   html = replace_all(html, "${TASK}", result.task);
-  html = replace_all(html, "${USER_ID}", result.user_id);
+  html = replace_all(html, "${USER_ID}", anonimify(result.user_id, result.task));
   html = replace_all(html, "${SUBMISSION_ID}", result.submission_id);
   html = replace_all(html, "${COMPILER_FLAGS}", result.flags);
   html = replace_all(html, "${COMPILE_STATUS}", result.compile_successful ? green("Success") : red("Failed"));
@@ -392,6 +395,31 @@ std::string generate_submission_id() {
 void sort_leaderboard(std::vector<leaderboard_entry> &leaderboard) {
   std::sort(leaderboard.begin(), leaderboard.end(),
             [](auto &a, auto &b) { return a.best_time < b.best_time; });
+}
+
+std::string generate_user_id() {
+  char buf[100];
+  submission_id_counter++;
+  int32_t rand_val = std::rand();
+  std::sprintf(buf, "%08x", rand_val);
+  return std::string(buf);
+}
+
+std::string find_user_id_in_request(const httplib::Request &req) {
+  static std::string header {"Cookie"};
+  int count = req.get_header_value_count(header);
+  for (int i = 0; i < count; ++i) {
+    std::string cookie = req.get_header_value(header, i);
+    int space_idx = cookie.find("=");
+    if (space_idx != std::string::npos) {
+      std::string cookie_name = cookie.substr(0, space_idx);
+      std::string cookie_value = cookie.substr(space_idx + 1);
+      if (cookie_name == "userId") {
+        return cookie_value;
+      }
+    }
+  }
+  return "";
 }
 
 int main(int argc, char **argv) {
@@ -472,20 +500,26 @@ int main(int argc, char **argv) {
   svr.set_mount_point("/", "./runtime/static/");
   svr.Get("/(leaderboard)?", [&](const httplib::Request &req,
                                  httplib::Response &res) {
-    std::string user_id = anonimify(req.remote_addr, task);
+
+    //std::string user_id = anonimify(req.remote_addr, task);
+    std::string user_id = find_user_id_in_request(req);
+    if (user_id == "") {
+      res.set_header("Set-Cookie", "userId=" + generate_user_id());
+    }
     res.set_content(render_leaderboard(task, leaderboard, user_id, public_mode),
                     "text/html");
     res.status = 200;
   });
   svr.Post("/submit", [&](const httplib::Request &req, httplib::Response &res) {
+    std::string user_id = find_user_id_in_request(req);
     if (req.has_param("code") && req.has_param("flags") &&
-        req.has_param("author")) {
+        req.has_param("author") && user_id != "") {
       std::string code = req.get_param_value("code");
       std::string flags = req.get_param_value("flags");
       std::string author = req.get_param_value("author");
 
       if (!(author == "Human" || author == "ChatGPT" || author == "HumanTeam" ||
-            author == "HybridTeam")) {
+            author == "HybridTeam" || author == "Teacher")) {
         res.set_content("Invalid form submission.", "text/plain");
         res.status = 404;
         return;
@@ -505,7 +539,6 @@ int main(int argc, char **argv) {
         return;
       }
 
-      std::string user_id = anonimify(req.remote_addr, task);
       std::string submission_id = generate_submission_id();
 
       int exit_code = run_validated_submission(
@@ -540,7 +573,7 @@ int main(int argc, char **argv) {
   });
   svr.Get("/view_submission", [&](const httplib::Request &req,
                                   httplib::Response &res) {
-    std::string user_id = anonimify(req.remote_addr, task);
+    std::string user_id = find_user_id_in_request(req);
     std::string submission_id = req.get_param_value("id");
     auto it = std::find_if(leaderboard.begin(), leaderboard.end(),
                            [&submission_id](const auto &e) {
