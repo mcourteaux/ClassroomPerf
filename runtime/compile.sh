@@ -6,6 +6,8 @@ echo "Compiling..."
 DIR=$1
 cd $DIR
 
+SYMBOL=$2
+
 # Syntax highlight source
 highlight -s molokai -O html --inline-css -f -o submitted_code.highlight.html submitted_code.hpp
 
@@ -33,10 +35,9 @@ if [ ! -e $OBJDUMP ]; then
   OBJDUMP=objdump
 fi
 
-SYMBOL_NAME="student_atan"
-SYMBOL=$($OBJDUMP -t $BINARY | grep ' g  ' | grep $SYMBOL_NAME | cut -d\  -f 6)
-echo "Found symbol: $SYMBOL"
-SYMBOL="_Z12student_atanf"
+if [[ ! -z "${SYMBOL}" ]]; then
+  echo "Using symbol name '${SYMBOL}' given as variable."
+fi
 $OBJDUMP $BINARY --disassembler-color=extended-color --visualize-jumps=extended-color --disassemble=$SYMBOL --no-addresses --no-show-raw-insn > disassembly.ansi
 $OBJDUMP $BINARY --disassembler-color=extended-color --visualize-jumps=extended-color --disassemble=$SYMBOL --no-addresses --no-show-raw-insn -S > disassembly_with_source.ansi
 cat disassembly.ansi | aha --no-header > disassembly.html

@@ -33,6 +33,9 @@ inline bool contains_regex(const std::string &code, std::string regex) {
   std::regex r(regex);
   return std::regex_search(code, r);
 }
+
+static std::vector<std::string> task_specific_bad_code_regex;
+
 bool validate_code_input(const std::string &code) {
   // clang-format off
   static std::vector<std::string> bad_code_regex = {
@@ -51,8 +54,6 @@ bool validate_code_input(const std::string &code) {
       "fstream", "fopen", "fputc", "filesystem", "directory_iterator", "dirent", "opendir", "readdir", "fread", "fwrite",
       // Stdin/stdout
       "printf", "puts", "fputs", "putc", "\\bcout\\b", "\\bcerr\\b", "\\bcin\\b",
-      // Competition rules
-      "cmath", "math.h", "std::atan", "\\batan\\b", "\\batanf\\b", "\\batanl\\b",
   };
   static std::vector<std::string> bad_code_plain = {
       // Digraphs and preprocessor
@@ -136,6 +137,7 @@ int run_validated_submission(const std::string &task,
                              const std::string &user_id,
                              const std::string &submission_id,
                              const std::string &code, const std::string &flags,
+                             const std::string &symbol,
                              const std::string &author, const std::string &ip) {
   std::printf("Running submission.\n");
   std::filesystem::path submission_dir = "submissions";
@@ -184,13 +186,18 @@ int run_validated_submission(const std::string &task,
   }
 
   std::printf("   + copy benchmark.cpp\n");
-  std::filesystem::copy_file("benchmark.cpp", submission_dir / "benchmark.cpp",
+  std::filesystem::path benchmark_file = "tasks";
+  benchmark_file /= task;
+  benchmark_file /= "benchmark.cpp";
+  std::filesystem::copy_file(benchmark_file, submission_dir / "benchmark.cpp",
                              std::filesystem::copy_options::overwrite_existing);
 
   std::string command = "/bin/bash ";
   command += std::filesystem::absolute("runtime/compile.sh").string();
   command += " ";
   command += submission_dir.string();
+  command += " ";
+  command += symbol; // Symbol to get the disassembly of.
   std::printf("Executing command:\n%s\n", command.c_str());
   int exit_code = std::system(command.c_str());
   int status = WEXITSTATUS(exit_code);
@@ -459,13 +466,52 @@ int main(int argc, char **argv) {
   // clang-format on
 
   auto args = options.parse(argc, argv);
-  if (args.count("help")) {
+  if (args.count("help") || args.count("task") == 0) {
     std::cout << options.help() << std::endl;
     std::exit(0);
   }
 
   std::string task = args["task"].as<std::string>();
   bool public_mode = args["public"].count();
+
+  std::filesystem::path task_folder("tasks/");
+  task_folder /= task;
+  if (!std::filesystem::is_directory(task_folder)) {
+    std::printf("No task directory found: %s\n", task_folder.c_str());
+    return 1;
+  }
+
+  std::filesystem::path bad_code_file = task_folder / "bad_code.regex";
+  if (std::filesystem::exists(bad_code_file)) {
+    task_specific_bad_code_regex.clear();
+    std::ifstream f(bad_code_file.string());
+    if (f.is_open()) {
+      std::printf("Found bad code file with rules:\n");
+      std::string line;
+      while (std::getline(f, line)) {
+        if (!line.empty()) {
+          task_specific_bad_code_regex.push_back(line);
+          std::printf("   '%s'\n", line.c_str());
+        }
+      }
+    } else {
+      std::printf("Could not load bad-code file for task %s: %s.\n", task.c_str(), bad_code_file.c_str());
+    }
+  } else {
+    std::printf("No bad code file found for task %s.\n", task.c_str());
+  }
+
+  std::filesystem::path symbol_file = task_folder / "symbol";
+  std::string symbol;
+  if (std::filesystem::exists(symbol_file)) {
+    symbol = read_file(symbol_file.string());
+    std::printf("Symbol file indicates: %s.\n", symbol.c_str());
+  } else {
+    std::printf("No symbol file found for task %s.\n", task.c_str());
+    return 1;
+  }
+
+
 
   std::srand(std::time(0));
   std::vector<leaderboard_entry> leaderboard;
@@ -564,7 +610,7 @@ int main(int argc, char **argv) {
       std::string submission_id = generate_submission_id();
 
       int exit_code = run_validated_submission(
-          task, user_id, submission_id, code, flags, author, req.remote_addr);
+          task, user_id, submission_id, code, flags, symbol, author, req.remote_addr);
 
       if (exit_code == 0) {
         submission_result result = load_submission_result(task, submission_id);
